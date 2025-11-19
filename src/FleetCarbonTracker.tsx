@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Truck, Gauge, Leaf, TrendingDown, AlertTriangle, CheckCircle, BarChart3, Users, Calendar, MapPin, Plus, X, Package, Droplet, Settings, Wind, Timer, TreePine, Filter } from 'lucide-react';
-import type { Vehicle, FormData, Inspection, Tire, VehicleDatabase, NewVehicle } from './types';
+import type { Vehicle, FormData, Inspection, VehicleDatabase, NewVehicle, Emissions, ProviderStats } from './types';
 
 const vehicleDatabase: VehicleDatabase = {
   'Toyota': {
@@ -335,7 +335,7 @@ const FleetCarbonTracker = () => {
     }
   };
 
-  const handleVehicleSelect = (plate) => {
+  const handleVehicleSelect = (plate: string) => {
     const vehicle = vehicles.find(v => v.plate === plate);
     if (vehicle) {
       setFormData({
@@ -397,7 +397,7 @@ const FleetCarbonTracker = () => {
       return;
     }
 
-    const finalOdometer = parseFloat(formData.odometerStart || 0) + formData.googleDistance;
+    const finalOdometer = parseFloat((formData.odometerStart || 0).toString()) + formData.googleDistance;
 
     const newInspection = {
       ...formData,
@@ -434,9 +434,9 @@ const FleetCarbonTracker = () => {
     }
   };
 
-  const calculateEmissions = (data) => {
+  const calculateEmissions = (data: FormData): Emissions => {
     const baseConsumption = parseFloat(data.fuelEconomy) || 9;
-    const distance = parseFloat(data.googleDistance) || 0;
+    const distance = parseFloat(data.googleDistance.toString()) || 0;
     const loadWeight = parseFloat(data.loadWeight) || 0;
 
     const avgPressureLoss = data.tires.reduce((sum, tire) => {
@@ -454,7 +454,7 @@ const FleetCarbonTracker = () => {
     const adjustedConsumption = baseConsumption * (1 + pressureImpact + oilImpact + filterImpact) + (loadImpact * 100);
     const fuelUsed = (adjustedConsumption * distance) / 100;
 
-    const emissionFactors = {
+    const emissionFactors: { [key: string]: number } = {
       'Diesel': 2.75,
       'Gasoline': 2.31,
       'CNG': 1.89,
@@ -468,7 +468,7 @@ const FleetCarbonTracker = () => {
     const oilContribution = (26 / 10000) * distance;
 
     const totalIdleStops = data.stops.length;
-    const idleTime = data.includeIdleTime ? (totalIdleStops * parseFloat(data.idleTimePerStop)) : 0;
+    const idleTime = data.includeIdleTime ? (totalIdleStops * data.idleTimePerStop) : 0;
     const idleEmissions = data.fuelType === 'Electric' ? 0 : (idleTime / 60) * 1.0 * emissionFactor;
 
     return {
@@ -519,10 +519,10 @@ const FleetCarbonTracker = () => {
     if (filteredInspections.length === 0) return null;
 
     const totalEmissions = filteredInspections.reduce((sum, i) => sum + i.emissions.total, 0);
-    const totalDistance = filteredInspections.reduce((sum, i) => sum + (parseFloat(i.googleDistance) || 0), 0);
+    const totalDistance = filteredInspections.reduce((sum, i) => sum + ((typeof i.googleDistance === 'number' ? i.googleDistance : parseFloat(i.googleDistance)) || 0), 0);
     const totalIdleTime = filteredInspections.reduce((sum, i) => {
       const stops = i.stops?.length || 0;
-      return sum + (i.includeIdleTime ? (stops * parseFloat(i.idleTimePerStop || 0)) : 0);
+      return sum + (i.includeIdleTime ? (stops * i.idleTimePerStop) : 0);
     }, 0);
 
     const emissionsBySource = {
@@ -532,14 +532,14 @@ const FleetCarbonTracker = () => {
       idle: filteredInspections.reduce((sum, i) => sum + i.emissions.idle, 0)
     };
 
-    const providerStats = {};
+    const providerStats: { [key: string]: ProviderStats } = {};
     filteredInspections.forEach(i => {
       if (!providerStats[i.providerName]) {
         providerStats[i.providerName] = { trips: 0, emissions: 0, distance: 0 };
       }
       providerStats[i.providerName].trips++;
       providerStats[i.providerName].emissions += i.emissions.total;
-      providerStats[i.providerName].distance += parseFloat(i.googleDistance) || 0;
+      providerStats[i.providerName].distance += (typeof i.googleDistance === 'number' ? i.googleDistance : parseFloat(i.googleDistance)) || 0;
     });
 
     const treesNeeded = Math.ceil((totalEmissions / 1000) * 45);
@@ -575,7 +575,7 @@ const FleetCarbonTracker = () => {
     };
   };
 
-  const calculateFleetScore = (inspections, totalIdleTime, totalDistance) => {
+  const calculateFleetScore = (inspections: Inspection[], totalIdleTime: number, totalDistance: number): number => {
     let score = 100;
 
     const avgIdleRatio = totalIdleTime / (totalDistance / 60);
@@ -590,13 +590,13 @@ const FleetCarbonTracker = () => {
     return Math.max(0, Math.min(100, Math.round(score)));
   };
 
-  const updateTireField = (index, field, value) => {
+  const updateTireField = (index: number, field: string, value: string) => {
     const newTires = [...formData.tires];
     newTires[index] = { ...newTires[index], [field]: value };
     setFormData({ ...formData, tires: newTires });
   };
 
-  const updateNewVehicleTire = (index, field, value) => {
+  const updateNewVehicleTire = (index: number, field: string, value: string) => {
     const newTires = [...newVehicle.tires];
     newTires[index] = { ...newTires[index], [field]: value };
     setNewVehicle({ ...newVehicle, tires: newTires });
@@ -609,7 +609,7 @@ const FleetCarbonTracker = () => {
     });
   };
 
-  const removeStop = (index) => {
+  const removeStop = (index: number) => {
     if (formData.stops.length > 1) {
       const newStops = formData.stops.filter((_, i) => i !== index);
       setFormData({ ...formData, stops: newStops });
@@ -619,19 +619,19 @@ const FleetCarbonTracker = () => {
     }
   };
 
-  const updateStop = (index, value) => {
+  const updateStop = (index: number, value: string) => {
     const newStops = [...formData.stops];
     newStops[index] = { ...newStops[index], location: value };
     setFormData({ ...formData, stops: newStops });
   };
 
-  const calculateDistance = async (stops) => {
+  const calculateDistance = async (stops: { location: string; lat: number | null; lng: number | null }[]) => {
     if (stops.length < 1) {
       setFormData(prev => ({ ...prev, googleDistance: 0 }));
       return;
     }
 
-    const validStops = stops.filter(s => s.location.trim());
+    const validStops = stops.filter((s: { location: string }) => s.location.trim());
     if (validStops.length < 1) return;
 
     try {
@@ -924,11 +924,11 @@ const FleetCarbonTracker = () => {
                       <input
                         type="number"
                         value={formData.idleTimePerStop}
-                        onChange={(e) => setFormData({ ...formData, idleTimePerStop: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, idleTimePerStop: parseFloat(e.target.value) || 0 })}
                         className="w-40 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                       <p className="text-xs text-slate-500 mt-1">
-                        Total idle time: {((formData.stops.length) * parseFloat(formData.idleTimePerStop || 0)).toFixed(0)} minutes
+                        Total idle time: {((formData.stops.length) * formData.idleTimePerStop).toFixed(0)} minutes
                       </p>
                     </div>
                   )}
